@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flying Face</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { touch-action: none; overflow: hidden; background: #60a5fa; }
+        .bird { transition: transform 0.1s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- CONFIGURATION ---
+        // REPLACE THIS WITH YOUR EXACT IMAGE FILENAME
+        const IMAGE_NAME = "face.jpg"; 
+        
+        const GRAVITY = 0.6;
+        const JUMP = -8;
+        const PIPE_SPEED = 3;
+        const PIPE_SPACING = 220;
+
+        function App() {
+            const [gameState, setGameState] = useState('START'); 
+            const [birdPos, setBirdPos] = useState(300);
+            const [velocity, setVelocity] = useState(0);
+            const [score, setScore] = useState(0);
+            const [pipes, setPipes] = useState([]);
+
+            // Game Loop
+            useEffect(() => {
+                if (gameState !== 'PLAYING') return;
+                const loop = setInterval(() => {
+                    setBirdPos(p => p + velocity);
+                    setVelocity(v => v + GRAVITY);
+                    
+                    // Move Pipes
+                    setPipes(current => {
+                        let newPipes = current.map(p => ({...p, x: p.x - PIPE_SPEED}));
+                        // Remove old pipes
+                        if (newPipes.length > 0 && newPipes[0].x < -60) newPipes.shift();
+                        // Add new pipes
+                        if (newPipes.length === 0 || newPipes[newPipes.length - 1].x < window.innerWidth - 200) {
+                            const height = Math.random() * (window.innerHeight - PIPE_SPACING - 100) + 50;
+                            newPipes.push({ x: window.innerWidth, height, passed: false });
+                        }
+                        return newPipes;
+                    });
+                }, 24);
+                return () => clearInterval(loop);
+            }, [gameState, velocity]);
+
+            // Collision & Score
+            useEffect(() => {
+                if (gameState !== 'PLAYING') return;
+                
+                // Floor/Ceiling
+                if (birdPos > window.innerHeight || birdPos < -50) setGameState('OVER');
+
+                // Pipe Collision
+                pipes.forEach(p => {
+                    const birdRect = { l: 50, r: 100, t: birdPos, b: birdPos + 50 }; // 50px width/height
+                    const pipeTop = { l: p.x, r: p.x + 60, t: 0, b: p.height };
+                    const pipeBot = { l: p.x, r: p.x + 60, t: p.height + PIPE_SPACING, b: window.innerHeight };
+
+                    if (checkCol(birdRect, pipeTop) || checkCol(birdRect, pipeBot)) setGameState('OVER');
+                    
+                    if (!p.passed && p.x < 50) {
+                        setScore(s => s + 1);
+                        p.passed = true;
+                    }
+                });
+            }, [birdPos, pipes]);
+
+            const checkCol = (r1, r2) => {
+                return !(r2.l > r1.r || r2.r < r1.l || r2.t > r1.b || r2.b < r1.t);
+            };
+
+            const jump = () => {
+                if (gameState === 'PLAYING') setVelocity(JUMP);
+                else if (gameState !== 'PLAYING') {
+                    setGameState('PLAYING');
+                    setBirdPos(300);
+                    setVelocity(0);
+                    setPipes([]);
+                    setScore(0);
+                }
+            };
+
+            return (
+                <div onClick={jump} className="w-full h-screen relative cursor-pointer">
+                    {/* The Player (Your Face) */}
+                    <img 
+                        src={IMAGE_NAME} 
+                        className="bird absolute w-12 h-12 rounded-full border-2 border-white object-cover z-20"
+                        style={{ top: birdPos, left: 50, transform: `rotate(${velocity * 5}deg)` }}
+                        onError={(e) => {e.target.src='https://cdn-icons-png.flaticon.com/512/742/742751.png'}} // Fallback if image fails
+                    />
+
+                    {/* Pipes */}
+                    {pipes.map((p, i) => (
+                        <div key={i}>
+                            <div className="absolute bg-green-500 border-2 border-green-800 w-[60px]" style={{left: p.x, top: 0, height: p.height}}></div>
+                            <div className="absolute bg-green-500 border-2 border-green-800 w-[60px]" style={{left: p.x, top: p.height + PIPE_SPACING, bottom: 0}}></div>
+                        </div>
+                    ))}
+
+                    {/* Score */}
+                    <div className="absolute top-10 w-full text-center text-6xl font-bold text-white drop-shadow-lg z-30">{score}</div>
+
+                    {/* Start/Game Over Screen */}
+                    {gameState !== 'PLAYING' && (
+                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white z-40">
+                            <h1 className="text-4xl font-bold mb-4">{gameState === 'OVER' ? 'GAME OVER' : 'FLYING FACE'}</h1>
+                            <p className="text-xl animate-bounce">Tap to Fly!</p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
